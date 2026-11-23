@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Golf Plan</title>
+<style>
+/* Layout idea: a scorecard. Sticky week strip and day tabs on top, one session card below, exercises as rows you tick off like holes. */
+:root{
+  --paper:#f4f5f0;
+  --card:#ffffff;
+  --ink:#1c2620;
+  --muted:#5b685f;
+  --line:#d9ddd3;
+  --fairway:#2c6a45;
+  --flag:#c98a12;
+  --display:"sans-serif-condensed","Roboto Condensed","Arial Narrow",sans-serif;
+  --body:Roboto,"sans-serif",system-ui,sans-serif;
+  --ph-stab:#3b7f8c; --ph-hyp:#2c6a45; --ph-end:#6f7d2c; --ph-str:#34509a; --ph-pow:#c4561e; --ph-taper:#7a7f86; --ph-season:#1f7a5c;
+  --done-bg:#e6f0e8;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#121714; --card:#1a211c; --ink:#e7ece6; --muted:#9aa89e; --line:#2c362f; --fairway:#5fb383; --flag:#e3a93a;
+    --ph-stab:#5aa7b4; --ph-hyp:#5fb383; --ph-end:#a9b84f; --ph-str:#7b95dc; --ph-pow:#e8814c; --ph-taper:#9aa0a8; --ph-season:#4cbf96;
+    --done-bg:#1f3326; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#121714; --card:#1a211c; --ink:#e7ece6; --muted:#9aa89e; --line:#2c362f; --fairway:#5fb383; --flag:#e3a93a;
+  --ph-stab:#5aa7b4; --ph-hyp:#5fb383; --ph-end:#a9b84f; --ph-str:#7b95dc; --ph-pow:#e8814c; --ph-taper:#9aa0a8; --ph-season:#4cbf96;
+  --done-bg:#1f3326; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--flag);outline-offset:2px}
+.wrap{max-width:760px;margin:0 auto;padding:0 16px 48px}
+header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:20px 0 12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:700;font-size:30px;line-height:1.05;margin:0;letter-spacing:.01em;text-wrap:balance}
+.sub{color:var(--muted);font-size:14px;margin:4px 0 0}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:7px 12px;cursor:pointer;font-size:14px;font-weight:500}
+.btn:hover{border-color:var(--fairway)}
+.btn.primary{background:var(--fairway);border-color:var(--fairway);color:#fff}
+.sticky{position:sticky;top:0;z-index:5;background:var(--paper);padding-bottom:8px;border-bottom:1px solid var(--line)}
+.weeks{display:flex;gap:6px;overflow-x:auto;padding:8px 0 10px;scrollbar-width:thin}
+.wk{flex:0 0 auto;min-width:46px;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:4px 6px 5px;cursor:pointer;text-align:center;position:relative}
+.wk b{display:block;font-family:var(--display);font-size:18px;line-height:1.1;font-weight:600}
+.wk span{display:block;font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
+.wk::before{content:"";position:absolute;left:6px;right:6px;top:0;height:3px;border-radius:0 0 3px 3px;background:var(--ph)}
+.wk[aria-selected="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.wk .pct{position:absolute;left:0;bottom:0;height:3px;background:var(--fairway);border-radius:0 0 0 8px}
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.day{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:5px 2px;cursor:pointer;text-align:center;min-width:0}
+.day b{display:block;font-size:13px;font-weight:600}
+.day span{display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.day[aria-selected="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.day[aria-selected="true"] span{color:var(--paper);opacity:.8}
+.day.done span::after{content:" ✓"}
+.phase{margin:16px 0 10px;padding:12px 14px;border-left:4px solid var(--ph);background:var(--card);border-radius:0 10px 10px 0;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.phase h2{font-family:var(--display);font-size:22px;font-weight:600;margin:0;line-height:1.15}
+.phase p{margin:2px 0 0;font-size:14px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{font-size:12px;border:1px solid var(--line);border-radius:999px;padding:2px 9px;background:var(--paper);font-variant-numeric:tabular-nums}
+.session h3{font-family:var(--display);font-size:26px;font-weight:700;margin:18px 0 2px;line-height:1.1;text-wrap:balance}
+.session .meta{color:var(--muted);font-size:14px;margin:0 0 10px}
+.block{background:var(--card);border:1px solid var(--line);border-radius:10px;margin:12px 0;overflow:hidden}
+.block > header{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.block > header h4{margin:0;font-family:var(--display);font-size:18px;font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.block > header small{color:var(--muted);font-size:13px;text-align:right}
+.note{padding:10px 14px;font-size:14px;color:var(--muted);border-bottom:1px solid var(--line)}
+.note:last-child{border-bottom:0}
+.ex{border-bottom:1px solid var(--line)}
+.ex:last-child{border-bottom:0}
+.ex.done{background:var(--done-bg)}
+.exrow{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:start;padding:10px 14px}
+.exrow input{width:20px;height:20px;margin:2px 0 0;accent-color:var(--fairway);cursor:pointer}
+.exname{font-weight:600;font-size:15px;line-height:1.35}
+.ex.done .exname{text-decoration:line-through;text-decoration-color:var(--muted)}
+.rx{font-family:var(--display);font-weight:600;font-size:17px;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--fairway);text-align:right}
+details{padding:0 14px 10px 52px;font-size:14px}
+summary{cursor:pointer;color:var(--muted);font-size:13px;list-style:none;display:inline-block}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"▸ ";}
+details[open] summary::before{content:"▾ "}
+details p{margin:6px 0 0;max-width:62ch}
+details .why{color:var(--fairway);font-weight:500}
+.tags{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px}
+.tag{font-size:13px;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:3px 8px}
+.golf{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border:1px dashed var(--fairway);border-radius:10px;margin:12px 0;font-size:14px;background:var(--card)}
+.golf b{color:var(--fairway);font-family:var(--display);font-size:16px;letter-spacing:.03em;text-transform:uppercase;flex:0 0 auto}
+.rest{padding:24px 14px;text-align:center;color:var(--muted)}
+.foot{display:flex;justify-content:space-between;gap:10px;margin-top:18px;flex-wrap:wrap}
+.foot .btn{flex:1 1 140px}
+.small{font-size:13px;color:var(--muted)}
+.progress{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 12px;display:grid;gap:8px}
+.progress .next{font-size:14px;color:var(--muted)}
+.progress .next b{display:block;color:var(--ink);font-family:var(--display);font-size:20px;font-weight:600;line-height:1.2}
+.bar{height:8px;border-radius:999px;background:var(--paper);border:1px solid var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--fairway)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row .btn{flex:1 1 auto}
+.stats{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:28px}
+.tools .btn{flex:1 1 100px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px;z-index:20}
+.overlay.open{display:flex}
+.dialog{background:var(--card);color:var(--ink);border-radius:12px;padding:16px;width:100%;max-width:520px;display:grid;gap:10px;border:1px solid var(--line)}
+.dialog h4{margin:0;font-family:var(--display);font-size:22px}
+.dialog p{margin:0;font-size:14px;color:var(--muted)}
+.dialog textarea{width:100%;min-height:140px;font:12px/1.4 monospace;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px}
+.btn.danger{border-color:#b3412e;color:#b3412e}
+@media (max-width:420px){
+  h1{font-size:26px}
+  .day b{font-size:12px}
+  .day span{font-size:10px}
+  details{padding-left:14px}
+  .rx{font-size:16px}
+}
+@media (prefers-reduced-motion: reduce){*{scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Golf Plan</h1>
+      <p class="sub">26 weeks · 23 Nov 2026 – 23 May 2027 · home training</p>
+    </div>
+  </header>
+  <section class="progress" id="progress" aria-live="polite"></section>
+  <div class="sticky">
+    <div class="weeks" id="weeks" role="tablist" aria-label="Weeks"></div>
+    <div class="days" id="days" role="tablist" aria-label="Days"></div>
+  </div>
+  <main id="main"></main>
+  <div class="tools">
+    <button class="btn" type="button" id="backupBtn">Back up progress</button>
+    <button class="btn" type="button" id="restoreBtn">Restore</button>
+    <button class="btn danger" type="button" id="resetBtn">Reset</button>
+  </div>
+  <p class="small" style="margin-top:16px">Progress is saved on this phone and survives app updates. Back it up before changing phones. Pain is not a training variable: stop the exercise, swap it, and get it checked if it persists.</p>
+  <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+    <div class="dialog">
+      <h4 id="dlgTitle"></h4>
+      <p id="dlgText"></p>
+      <textarea id="dlgArea" aria-label="Backup data"></textarea>
+      <div class="row" id="dlgBtns"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- Dates ---------- */
+const START = new Date(2026, 10, 23); // Mon 23 Nov 2026
+const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function dateOf(w, d){ const x = new Date(START); x.setDate(x.getDate() + (w-1)*7 + d); return x; }
+function fmt(x){ return x.getDate() + " " + MONTHS[x.getMonth()]; }
+
+/* ---------- Exercise library ---------- */
+const EX = {
+// Stretches & mobility
+fig4:["Figure 4 stretch","Lie on your back, cross one ankle over the other knee and pull the bottom thigh towards your chest until you feel it in the glute of the crossed leg.","Hip rotation for a full turn without swaying."],
+ninety:["90-90 stretch","Sit with the front leg bent 90° in front of you and the back leg bent 90° to the side. Sit tall and lean your chest over the front shin. Switch sides.","Opens hip internal and external rotation, both used every swing."],
+hipflex:["Half-kneeling hip flexor stretch","Kneel on one knee, squeeze that glute and shift your hips forward until the front of the hip stretches. Keep the lower back flat.","Tight hip flexors pull you out of posture (early extension)."],
+ankle:["Multidirectional ankle flexion","Half-kneeling, front foot flat. Drive the knee forward over the toes, then outside and inside the toes, heel staying down.","Ankle range lets you stay down through impact."],
+spider:["Spiderman stretch","From a push-up position step one foot outside the same hand, sink the hips, then rotate that arm up to the ceiling.","Hips and upper back in one move."],
+openbook:["Open book","Lie on your side, knees bent 90° and stacked, arms straight in front. Open the top arm across to the other side, eyes following the hand, knees stay together.","Thoracic rotation for a full shoulder turn."],
+lumbar:["Lumbar lock reach back","Kneel and sit back on your heels, one hand behind your lower back. Rotate the chest open towards the free side, elbow to the ceiling.","Sitting back locks the low back so the turn comes from the mid-back."],
+palm:["Palm presses","Press the palms together at chest height, fingers up, and lower the hands until the wrists stretch. Then backs of the hands together, fingers down.","Wrist range for hinging and releasing the club."],
+benchlat:["Bench lat stretch","Kneel facing the step, elbows on it, hands together. Sit your hips back and let your chest sink towards the floor.","Lat length keeps posture at the top of the backswing."],
+wallslide:["Scapula wall slides","Back against a wall, arms in a W with elbows and wrists on the wall. Slide up to a Y without the lower back arching.","Shoulder blade control and overhead range."],
+clock:["Side lying clock","Lie on your side, knees bent. Sweep the top hand in a big circle on the floor over your head and behind you, letting chest and eyes follow.","Shoulder and thoracic mobility together."],
+throtation:["Thoracic rotation","On hands and knees, one hand behind your head. Rotate the elbow down under the body, then up to the ceiling.","Upper-back turn independent of the hips."],
+backswing:["Backswing stretch","In golf posture with a club across your shoulders, turn into your backswing and hold the end position. Hips stay quiet.","Trains the end range of your backswing."],
+fwdswing:["Forward swing stretch","Same set-up, turn through into your finish position and hold.","Range for a full, balanced finish."],
+wallopen:["Wall open book","Stand side-on to a wall, arms straight in front, palms together. Open the outer arm back towards the wall while your hips stay facing forward.","Upper-body turn without the hips."],
+hams:["Hamstring stretch","Heel on the step, leg straight. Hinge forward with a flat back until the back of the thigh stretches.","Lets you hold your spine angle at address."],
+wgs:["World's greatest stretch","Step into a long lunge, put the same-side hand down inside the front foot, drop that elbow towards the instep, then rotate the arm to the ceiling.","Hips, hamstrings and thoracic spine in one move."],
+cobradog:["Prone cobra to downward dog","Lying face down, press the chest up (cobra), then push the hips up and back into an upside-down V. Flow between the two.","Spine extension and posterior chain length."],
+hipcircles:["Standing hip circles","Hold a wall, stand on one leg and draw big circles with the other knee, both directions.","Warms up the hip joint for rotation."],
+dynlunge:["Dynamic lunge to hamstring","Step into a lunge, then shift the hips back, straighten the front leg and reach towards the toes. Alternate legs.","Dynamic hip and hamstring prep."],
+aframe:["A-frame stretch","Wide stance, shift side to side bending one knee so the inside of the straight leg stretches.","Adductor range for weight shift."],
+mlr:["Multidirectional lunge rotation","Lunge forward, then to the side, then back; at each lunge rotate the chest towards the front leg.","Rotation over a loaded leg, like the swing."],
+warrior:["Warrior one stretch","Long lunge with the back heel down, arms overhead, sink the hips forward.","Hip flexor and lat length together."],
+legswings:["Leg swings","Hold a wall and swing one leg forward and back, then side to side, 10 each.","Dynamic hip warm-up before speed work."],
+cat:["Cat stretch","On hands and knees, round the back up to the ceiling, then let it sag. Slowly.","Spinal mobility."],
+lungerot:["Lunge with rotation","Step into a lunge and rotate the chest over the front leg, arms reaching.","Rotation with a stable base."],
+thext:["Kneeling thoracic extension","Kneel facing the step, elbows on it, hands behind your head. Sit back and let your chest sink.","Upper-back extension for a tall posture."],
+butterfly:["Butterfly","Sit with the soles together and knees out, sit tall and let the knees drop.","Adductor and hip opening."],
+sidestr:["Standing side stretch","Stand tall, reach one arm overhead and lean to the opposite side.","Side-body length for a full turn."],
+sidebend:["Side bends","Stand tall, hands at sides, slide one hand down the leg and return; alternate.","Lateral trunk mobility."],
+invham:["Inverted hamstrings","Stand on one leg, hinge forward reaching down while the free leg extends behind, slowly, then return.","Hamstring length with balance."],
+// Phase 1 – lower
+boxsquat:["Box squat to the step","Feet shoulder-width in front of the step. Sit back until you lightly touch it, then stand by driving through your heels. Knees track over toes.","Hip and knee alignment, so you hold address posture."],
+gobletpause:["Goblet squat with pause","Hold one dumbbell upright at your chest. Squat to just above the step, pause 2 s, stand.","Leg strength and a tall torso."],
+sldlwall:["Single-leg deadlift (wall assist)","Stand on one leg, fingertips on a wall. Hinge forward, free leg reaching back, until your torso is near horizontal. Keep the hips level and return.","The hip hinge and one-leg stability each leg uses in the swing."],
+sldlrot:["Single-leg deadlift with hip rotation","Same as the single-leg deadlift, holding one dumbbell. At the bottom slowly rotate the pelvis open and closed, then stand.","Hip control while rotating on one leg."],
+stepup:["Step-up","One foot on the step, push through that heel to stand tall, step down slowly. Do all reps on one leg, then switch.","Leg strength and balance through a full stride."],
+stepupcp:["Step-up, curl, press","Step up holding light dumbbells; at the top curl them, then press overhead, lower and step down.","Full-body coordination on one leg."],
+towelslide:["Towel hamstring slide","Lie on your back, heels on a towel on a hard floor. Lift your hips into a bridge, slide the heels out until the legs are almost straight, pull them back. Hips stay up.","Hamstrings that hold your spine angle."],
+sltowel:["Single-leg towel slide","Same as the towel slide, one heel on the towel and the other leg in the air.","Harder hamstring and glute control."],
+monster:["Monster walks","Mini band above the knees, half squat, feet wide. Walk forward and backward keeping tension on the band.","Glute med strength that stops the sway."],
+latwalk:["Lateral band walks","Mini band above the knees or ankles, half squat, take side steps with toes pointing forward. Both directions.","Glute med, lateral stability."],
+bridge:["Floor bridge","On your back, knees bent. Squeeze the glutes and lift the hips to a straight line from knees to shoulders. Pause 2 s.","Glutes for hip drive and stability."],
+bridgebench:["Bridge, feet on the step","Same as the floor bridge with feet on the step.","More range and glute work."],
+slbridge:["Single-leg bridge","Bridge on one foot, other knee pulled in or leg straight. Keep the pelvis level.","Single-side glute strength."],
+slbal:["Single-leg balance","Stand tall on one leg, other thigh lifted to parallel, arms slightly away from the body.","Balance at the finish."],
+slbalcush:["Single-leg balance on a cushion","Same on a cushion or balance pad. Harder: turn your head side to side.","Ankle and hip reflexes."],
+slbalreach:["Single-leg balance reach","On one leg, reach the free foot forward, to the side and back, tapping lightly, without losing balance.","Dynamic balance."],
+slbaleyes:["Single-leg balance, eyes closed","Same as single-leg balance with your eyes closed. Aim for 25 s.","The benchmark from your movement test."],
+slhiprot:["Single-leg hip rotation","Stand on one leg, hands on hips. Rotate the pelvis open and closed over the standing leg while the shoulders stay square.","Hip rotation over a planted leg, as in the downswing."],
+sidelunge:["Side lunge","Big step to the side, sit back into that hip with the other leg straight, push back to standing.","Lateral strength for weight transfer."],
+dbsidelunge:["Dumbbell side lunge","Side lunge holding one dumbbell at your chest.","Loaded lateral strength."],
+// Phase 1 – upper
+dbpress:["Dumbbell bench press","Lie on the step (or the floor), dumbbells at chest level. Press up over the shoulders, lower slowly.","Pressing strength with a steady trunk."],
+sapress:["Single-arm dumbbell press","One dumbbell, other hand on your stomach. Press without letting the body twist.","Anti-rotation plus pressing."],
+altpress:["Alternating-arm dumbbell press","Both dumbbells up; lower and press one arm at a time while the other holds.","Shoulder stability under alternating load."],
+pushincl:["Incline push-up","Hands on the step, body in a straight line. Lower the chest to the step and push back.","Shoulder stability and pressing."],
+pushup:["Push-up","Hands under shoulders, body straight from head to heels. Lower until the chest is a fist from the floor.","Upper-body endurance."],
+narrowpush:["Narrow push-up","Hands under the chest, elbows brushing the ribs.","Triceps and shoulder stability."],
+sidepush:["Side push-up","Do a push-up, then rotate into a side plank with the top arm up. Alternate sides.","Pressing plus rotational stability."],
+bandrow:["Band row","Anchor at chest height. Stand tall, pull the handles to your lower ribs, squeeze the shoulder blades, return slowly.","Upper back to hold posture."],
+sabandrow:["Single-arm band row, split stance","Split stance, one handle. Row without letting the trunk rotate.","Rowing with anti-rotation."],
+birddogrow:["Bird dog row","One hand and the same-side knee on the step, other leg straight behind. Row a dumbbell with the free hand.","Back strength with core stability."],
+bandpulldown:["Band pulldown","Anchor high. Kneel facing the door, pull the handles down to your shoulders, elbows to the ribs.","Lats, which drive the downswing."],
+iytw:["I, Y, T, W raises","Lie face down. Lift straight arms overhead (I), into a Y, out to the side (T), then elbows bent (W). Thumbs up, 2 s hold each.","Shoulder blade control at the top of the swing."],
+dbyt:["Dumbbell Y's and T's","Lightest dumbbells, hinge forward with a flat back (or lie face down on the step). Raise the arms into a Y, then a T.","Lower trapezius and rear shoulder."],
+hkpress:["Half-kneeling single-arm press","Kneel on one knee, press a light dumbbell overhead on the side of the down knee. Ribs down, no arching.","Overhead strength without lumbar arch. Skip if the impingement test hurt."],
+scappush:["Scapular push-ups","High plank, arms straight. Let the chest sink between the shoulder blades, then push the floor away.","Shoulder blade control."],
+wallwalk:["Mini band wall walks","Band round the wrists, forearms on the wall. Walk the hands up the wall in small steps, keeping the band tight.","Serratus and shoulder stability."],
+deadbug:["Dead bug","On your back, arms up, knees bent at 90°. Lower the opposite arm and leg towards the floor while the lower back stays pressed down.","Core control without the back arching."],
+birddog:["Bird dog","Hands and knees. Extend the opposite arm and leg, hold 2 s, don't let the hips rotate.","Trunk stability."],
+cobra:["Floor cobra","Face down, arms by your sides. Lift the chest and arms, squeeze the shoulder blades, thumbs turned out.","Upper-back endurance for posture."],
+plank:["Plank","On forearms and toes, straight line, glutes squeezed.","Core endurance."],
+sideplank:["Side plank","On one forearm, feet stacked, hips lifted in a straight line.","Lateral core, for a stable pivot."],
+pushdown:["Band triceps pushdown","Anchor high, elbows at your sides, push the handles down until the arms are straight.","Optional arm work."],
+sldbcurl:["Single-leg dumbbell curl","Stand on one leg and curl a dumbbell.","Optional arm work with balance."],
+// Phase 1 – golf
+slgolf:["Single-leg golf posture hold","Take your golf posture, arms crossed over your chest, lift one foot and hold.","Balance in your real golf posture."],
+slgolfrot:["Single-leg golf posture rotations","Same position, rotate the chest back and through while balancing.","Rotation over one leg."],
+splitrot:["Split-stance band swing rotation","Anchor at chest height to your side. Split stance, arms straight holding the handle, rotate away through the torso and return slowly.","Separation of hips and torso."],
+throwcatch:["Single-leg throw and catch","On one leg, throw the basketball against a wall and catch it.","Reactive balance."],
+windmill:["Single-leg windmill","On one leg, hinge and rotate to reach the opposite hand towards the standing foot, then stand tall.","Balance plus hip rotation."],
+pallofhk:["Half-kneeling Pallof press","Side-on to a chest-height anchor, kneeling. Hold the handle at your chest, press the arms straight, hold 2 s, return. Don't let the band twist you.","Resisting rotation so the turn comes from the hips."],
+pallofss:["Split-stance Pallof press","Same as the Pallof press, standing in a split stance.","Anti-rotation, closer to standing golf."],
+pallof:["Pallof press","Standing side-on to a chest-height anchor, press the handle straight out, hold 2 s, return.","Anti-rotation core."],
+sabandrot:["Single-arm band rotation","Elbow at 90° by your side. Rotate the forearm out against the band (external), then switch sides to rotate in (internal).","Rotator cuff strength for both arms' roles in the swing."],
+lungebandrot:["Static lunge with band rotation","Hold a lunge side-on to the anchor and rotate the handle across your body.","Rotation over a split stance."],
+dbbackswing:["Dumbbell backswing","Golf posture holding a light dumbbell in both hands like a club. Make a slow backswing, pause, return.","Rehearses a stable backswing under load."],
+shtaps:["Shoulder taps","High plank, tap the opposite shoulder with each hand without rocking the hips.","Anti-rotation core."],
+superman:["Supermans","Face down, lift arms and legs together, hold 2 s.","Back endurance."],
+bodysaw:["Plank body saw","Forearm plank with your feet on a towel. Slide the body forward and back a few centimetres.","Hard anti-extension core."],
+slowdeadbug:["Dead bug, 3 s holds","Dead bug with a 3 s hold at full extension each rep.","Harder core control."],
+// Phase 2
+goblet:["Goblet squat","Hold one dumbbell upright at your chest. Squat as deep as you can with a flat back, stand.","Leg strength for a stable base."],
+dbrdl:["Dumbbell Romanian deadlift","Dumbbells in front of your thighs, soft knees. Push the hips back, keep the back flat and the dumbbells close, until you feel the hamstrings. Stand by squeezing the glutes.","The hinge that is your golf posture."],
+revlunge:["Dumbbell reverse lunge","Holding dumbbells, step back and lower the back knee towards the floor, then push back up through the front foot.","Single-leg strength."],
+bss:["Bulgarian split squat","Rear foot on the step, front foot a stride ahead. Lower the back knee towards the floor with a slight forward lean, drive up through the front heel.","Big single-leg strength builder."],
+splitsquat:["Split squat","Static split stance, both feet on the floor. Lower the back knee towards the floor and stand.","Single-leg strength."],
+hipthrust:["Hip thrust","Upper back on the step, dumbbell on the hips (towel underneath). Drive the hips up to a straight line, squeeze 1 s, lower.","Hip drive through impact."],
+slhipthrust:["Single-leg hip thrust","Hip thrust with one foot on the floor.","Single-side glute power."],
+stepuppress:["Step-up with two-arm press","Step up holding dumbbells at your shoulders and press both overhead at the top.","Full-body coordination."],
+slsqbench:["Single-leg squat to the step","Stand on one leg in front of the step, sit down slowly on that leg, stand up. Arms forward for balance.","Control on one leg."],
+multistep:["Multiplanar step-up","Step up forward, then sideways, then crossing over. Each direction counts as one rep.","Balance and strength in every direction."],
+revcrunch:["Reverse crunch","On your back, knees bent. Curl the hips off the floor towards your chest and lower slowly.","Lower-abdominal control."],
+footelevpush:["Feet-elevated push-up","Feet on the step, hands on the floor.","Upper chest and shoulders."],
+sadbrow:["Single-arm dumbbell row","Hand and knee on the step, flat back. Row the dumbbell to your hip.","Back strength for posture and the downswing."],
+dbshpress:["Seated dumbbell shoulder press","Sit on the step, press the dumbbells overhead, ribs down. Skip if the impingement test was positive.","Overhead strength."],
+revfly:["Bent-over reverse flyes","Hinge forward, light dumbbells, raise the arms out to the side squeezing the shoulder blades.","Rear shoulders for a stable top of the swing."],
+chop:["Half-kneeling band chop","Anchor high, side-on, kneeling. Pull the handle diagonally down across the body.","High-to-low rotation."],
+lift:["Half-kneeling band lift","Anchor low, side-on, kneeling. Pull the handle diagonally up across the body.","Low-to-high rotation."],
+standchop:["Standing band woodchop","Anchor high, standing side-on. Pull diagonally down across the body, turning from the hips.","Rotation through the legs and hips."],
+standlift:["Standing band lift","Anchor low, standing side-on. Pull diagonally up across the body.","The opposite diagonal."],
+dbcurl:["Dumbbell curl","Standing curl.","Optional arm work."],
+dbdl:["Double dumbbell deadlift","Dumbbells on the floor beside your feet. Hinge, grip, flat back, stand up tall.","Hinge strength."],
+dbswing:["Dumbbell swing","Hold one dumbbell by its head with both hands. Hinge and swing it between your legs, then snap the hips forward so it floats to chest height.","Explosive hip extension."],
+farmer:["Farmer's walk","Heaviest pair, stand tall, walk with short steps.","Grip and trunk stiffness."],
+bandrotpress:["Band rotational press","Side-on to a chest-height anchor, handle at the chest. Rotate away from the anchor through the hips and press the handle out.","Rotation driven by the hips."],
+sllc:["Single-leg band lift and chop","On one leg, do the band lift or chop.","Rotation while balancing."],
+sstorso:["Split-stance band torso rotation","Split stance, handle at chest with arms bent. Rotate the torso only, hips steady.","Hip and torso separation."],
+conereach:["Single-leg cone reach","Three water bottles in a triangle. On one leg, hinge and touch each with the opposite hand.","Balance and hinge."],
+spr:["Side plank row","Side plank on one forearm, row a light dumbbell with the top arm.","Lateral core plus back."],
+// Phase 3
+slrdl:["Single-leg Romanian deadlift","Dumbbell in the opposite hand, hinge on one leg, back flat, free leg straight behind, return.","Hamstring and glute strength on one leg."],
+goblet15:["Goblet squat, 1½ reps","Squat down, come halfway up, go back down, then stand fully. That is 1 rep.","More time under load with light dumbbells."],
+plankupdown:["Plank up/downs","From a forearm plank, push up to a high plank one arm at a time, then back down.","Anti-rotation core."],
+dbrdltempo:["Dumbbell Romanian deadlift, 3 s down","Romanian deadlift with a 3 s lowering.","Hinge strength with moderate weights."],
+bentrow:["Dumbbell bent-over row","Hinge forward with a flat back, row both dumbbells to your hips.","Back strength."],
+halfsqball:["Half squat with basketball rotation","Half squat holding the basketball, rotate side to side with the hips quiet.","Rotation from a loaded leg position."],
+bandsqrot:["Band squat to rotational press","Side-on to a chest-height anchor. Squat, then stand while rotating and pressing the handle away.","Ground-up sequencing: legs then hips then arms."],
+renegade:["Renegade row","High plank on the dumbbells, row one at a time without the hips rotating.","Anti-rotation plus back."],
+bandrot:["Band rotations","Side-on to a chest-height anchor, arms straight, rotate away through the hips and return slowly.","Rotation strength."],
+// Phase 4 – power
+squatjump:["Squat jump (low)","Quarter squat and jump straight up, land softly, reset.","Lower-body power."],
+latshuffle:["Lateral shuffles","Athletic stance, shuffle quickly 3–4 steps each way.","Quick weight transfer."],
+longjump:["Standing long jump","Swing the arms and jump forward as far as you can, land softly and stick it.","Horizontal power."],
+iceskater:["Ice skaters","Leap sideways from one foot to the other, landing softly and holding briefly.","Lateral power and balance."],
+latbound:["Lateral bounds","Push hard off one leg to bound sideways, land on the other and stick it.","Power from the trail leg."],
+hipdriver:["Hip drivers","Fast hip thrust off the step: drive the hips up explosively, lower under control.","Fast hip extension."],
+mbliftchop:["Ball lift and chop","Holding the ball, move fast from low on one side to high on the other, then reverse.","Fast diagonal rotation."],
+chestpass:["Chest pass","Throw the ball hard from your chest into the net or against a wall.","Upper-body speed."],
+bandchestfast:["Fast band chest press","Anchor behind you, press explosively, return under control.","Pushing speed."],
+bandrowfast:["Fast band row","Anchor in front, row explosively, return slowly.","Pulling speed."],
+fastpush:["Fast push-up off the step","Hands on the step, push explosively so your hands leave it briefly. Plyo push-up from the floor is optional if pain-free.","Upper-body power."],
+tennisthrow:["Tennis ball throws","Throw a tennis ball overhand hard into the net.","Arm speed."],
+bandropes:["Fast alternating band pulls","Two handles, alternate pulling as fast as you can for the set (replaces battle ropes).","Fast arm and core work."],
+bandpunch:["Band punches","Anchor behind, punch the handles forward fast, alternating.","Speed and core stability."],
+ohthrow:["Overhead ball throw","Outdoors: raise the ball overhead and throw it hard into the ground in front of you.","Full-body power."],
+kneelthrow:["Half-kneeling side throw","Kneel side-on to the net, ball at your hip. Rotate and throw it into the net.","Rotational speed from the trunk."],
+kneelbandrot:["Kneeling band torso rotation","Kneeling side-on to the anchor, rotate fast away from it, return under control.","Trunk rotation speed."],
+scoopthrow:["Standing rotational scoop throw","Side-on to the net, ball at the trail hip. Load the trail leg and rotate the hips to throw the ball into the net.","The closest drill to the golf downswing."],
+sachestthrow:["Single-arm golf posture chest throw","In golf posture, ball at the trail chest. Rotate and push-throw it into the net with the trail arm.","Trail-arm push through impact."],
+bandrotfast:["Fast band rotation","Arms straight, rotate fast away from the anchor, return under control.","Rotational speed."],
+screwdriver:["Screwdrivers","Arms folded, on the balls of your feet, twist the hips quickly side to side while the chest stays forward.","Fast hip rotation with a quiet upper body."],
+bandlatrotjump:["Band lateral rotation jumps","Holding a chest-height band side-on, hop sideways away from the anchor while rotating against the band, stick the landing.","Power and rotation together."],
+// Taper & maintenance
+walklunge:["Dumbbell walking lunge","Holding dumbbells, lunge forward alternating legs.","Leg maintenance."],
+golfsquat:["Golf squat","Bodyweight squat from your address posture, arms crossed.","Posture and leg maintenance."],
+walltoss:["Basketball wall toss","Rotate and toss the basketball against a wall from golf posture, both sides.","Light rotational speed."],
+sadbpress:["Single-arm dumbbell bench press","One dumbbell, press without twisting.","Pressing maintenance."],
+bandchest:["Band chest press","Anchor behind, press forward at chest height.","Pressing maintenance."],
+dbshrot:["Dumbbell shoulder rotations","Lie on your side, elbow at 90° on your hip, rotate a light dumbbell up.","Rotator cuff."],
+bandangles:["Band pull-aparts at three angles","Pull the band apart at high, middle and low angles (replaces the TRX clock pull).","Upper back and shoulder balance."],
+isobandrow:["Isometric band row","Pull to the row position and hold 30–60 s.","Posture endurance."],
+dbdeadlift:["Dumbbell deadlift","Hinge and lift the dumbbells from the floor.","Hinge maintenance."],
+ssdbrow:["Split-stance dumbbell row","Split stance, row one dumbbell, trunk steady.","Back plus anti-rotation."],
+sly:["Single-leg Y's","On one leg, hinge forward and raise both arms into a Y.","Balance plus upper back."],
+sltorsorot:["Single-leg torso rotations","On one leg, rotate the chest slowly back and through.","Rotation with balance."],
+curlpress:["Dumbbell curl and press","Curl, then press overhead.","Arm and shoulder maintenance."],
+bandsldl:["Band single-leg deadlift","Stand on a band, single-leg deadlift against its tension.","Hinge and balance."],
+pullapart:["Band pull-aparts","Arms straight in front, pull the band apart to your chest.","Upper back."],
+pullaprot:["Band pull-apart rotations","Pull the band apart, then rotate the chest one way, return and the other way.","Upper back plus rotation."],
+sidesteps:["Band side steps","Mini band above the knees, side steps.","Glute med."],
+ohrevlunge:["Band overhead reverse lunge","Hold a band pulled apart overhead, reverse lunge.","Leg strength with posture."],
+takeaway:["Band takeaway","Anchor low on the target side, golf posture holding the handle like a grip. Make your takeaway against the band.","Strengthens the first move of the swing."],
+slsqdb:["Single-leg dumbbell squat","Single-leg squat to the step holding a light dumbbell.","Single-leg strength."],
+dbsly:["Dumbbell single-leg Y","Single-leg Y with light dumbbells.","Balance plus upper back."],
+bandlathops:["Band lateral hops","Mini band at the ankles, small quick hops side to side.","Ankle and hip reactivity."],
+ssbandrow:["Split-stance band row","Split stance, row both handles.","Back strength."],
+activation:["Band glute and shoulder activation","Mini band bridges ×10, then band pull-aparts ×10.","Pre-round activation."],
+// Tests
+t_pelvis:["Pelvis rotation test","Mid-iron posture, arms crossed on the chest. Rotate only the hips back and forth. Pass: shoulders stay still and it's smooth both ways.",""],
+t_shoulder:["Shoulder IR/ER test","Back to the wall, arm out at 90°, elbow bent 90°. Rotate the forearm down (target 20° from the wall) and up (back of the hand to the wall). Each side.",""],
+t_wrist:["Wrist flexion/extension","Lay a 6-iron along the forearm; its angle is about 60°. Check you reach it bending the wrist up and down, each side.",""],
+t_lat:["Lat test","Back flat on the wall, knees slightly bent, thumbs up. Raise straight arms until the back arches or the elbows bend. Target 120° (6-iron shaft line) or more.",""],
+t_hip:["Standing hip rotation","Clubs on the floor forming 60°. Stand on one leg and rotate the pelvis over that foot. Target more than 60° in all 4 directions.",""],
+t_trunk:["Seated trunk rotation","Sit on the step, knees together, club across the front of the shoulders, then behind the back. Rotate each way. Target more than 45° with the club behind.",""],
+t_ankle:["Ankle dorsiflexion","Half-kneeling, drive the knee forward with the heel down; measure the shin angle with a phone app. Target 40° or more.",""],
+t_imp:["Impingement test","Hand on the opposite shoulder, raise the elbow to shoulder height. Any pain is a positive test: no overhead pressing, see a physio.",""],
+t_habd:["Horizontal abduction","Back on the wall, arms straight in front, palms together. Open the arms back to the wall. Note shrugging, back arching or elbows bending.",""],
+t_ohs:["Overhead squat","Barefoot, arms overhead, squat to chair height. Film front and side. Note feet turning out, knees caving, back arching, forward lean, arms falling.",""],
+t_toe:["Toe touch","Feet together, knees straight, reach for the toes. Repeat with one heel on a book, each side.",""],
+t_bridge:["Bridge with leg extension","Bridge up, straighten one leg, hold 10 s. Note any pelvis drop or cramping. Each side.",""],
+t_slb:["Single-leg balance, eyes closed","Thigh up to parallel, close your eyes, time it. 25 s is good.",""],
+t_cone:["3-cone reach","Three bottles in a triangle. On one leg, hinge and touch each one; count full rounds in 60 s, each side.",""],
+t_push:["Push-up test","As many as you can in 60 s with good form (knees if needed).",""],
+t_pull:["Pull-up test","Only if you have a bar: max clean reps.",""],
+t_davies:["Davies test","Push-up position, hands on two tape lines 90 cm apart. Alternate touching one hand to the other for 15 s. Three trials, record the best.",""],
+t_throw:["Rotational throw","Into the net from a marked line, best of 3 each side. Use the same ball every time and note which.",""],
+t_vj:["Vertical jump","Side-on to a wall, mark your standing reach, then jump and touch as high as possible. Best of 3.",""],
+t_bss:["Bulgarian split squat test","Heaviest pair, max clean reps per leg.",""],
+t_dbbench:["Dumbbell bench test","Heaviest pair, max clean reps.",""]
+};
+
+/* ---------- Phases ---------- */
+function phase(w){
+  if(w<=6) return {key:"stab",name:"Stabilization",sub:"Joint control, balance and posture. Slow and light.",color:"var(--ph-stab)"};
+  if(w<=9) return {key:"hyp",name:"Hypertrophy",sub:"Build muscle on golf patterns.",color:"var(--ph-hyp)"};
+  if(w<=12) return {key:"end",name:"Muscular endurance",sub:"Keep it going for 18 holes.",color:"var(--ph-end)"};
+  if(w<=18) return {key:"str",name:"Strength",sub:"Single-leg and tempo work make moderate dumbbells heavy.",color:"var(--ph-str)"};
+  if(w<=22) return {key:"pow",name:"Power",sub:"Turn strength into speed. Every rep explosive.",color:"var(--ph-pow)"};
+  if(w===23) return {key:"taper",name:"Taper",sub:"Daily mobility, very light lifting. First rounds.",color:"var(--ph-taper)"};
+  return {key:"season",name:"Playing-season maintenance",sub:"Three short sessions, golf comes first.",color:"var(--ph-season)"};
+}
+function weekChips(w){
+  if(w<=6){const r={1:"1 × 12",2:"2 × 12",3:"2 × 12",4:"2 × 15",5:"3 × 15",6:"3 × 15"}[w];return [r+" main block","Tempo 4-2-1","RPE 5–6","Rest 1–2 min"];}
+  if(w<=9) return ["3 × 8–10","Tempo 2-0-2","RPE 7","Rest 1 min"];
+  if(w<=12) return [(w===12?"4":"3")+" × 12–15","Tempo 2-0-2","RPE 7","Rest 1 min"];
+  if(w<=15) return ["Main 4 × 6–8","Accessories 2 × 10","RPE 7–8","Rest 2 min"];
+  if(w<=18) return ["Main 5 × 5–6","Accessories 3 × 8","RPE 8","Rest 2 min"];
+  if(w<=22) return [({19:"2",20:"3",21:"3",22:"4"})[w]+" × 8 power","Max speed","Rest 1 min","Maintenance 2 × 5–6"];
+  if(w===23) return ["1 × 12","Mobility daily","Easy"];
+  return ["1 × 10 or 1 min each","3 sessions","Cardio 2×/week"];
+}
+function cardioMin(w){ if(w<=2)return 20; if(w<=4)return 25; if(w<=6)return 30; if(w<=8)return 35; if(w<=22)return 40; return 30; }
+
+const PS = " per side";
+function items(list){ return list.map(x=>({id:x[0],rx:x[1]})); }
+
+/* ---------- Session builders ---------- */
+function stretchSets(w){ if(w<=2)return 1; if(w<=4)return 2; if(w<=6)return 3; return 2; }
+
+function sessionA(w){
+  if(w<=6){
+    const r={1:"1 × 12",2:"2 × 12",3:"2 × 12",4:"2 × 15",5:"3 × 15",6:"3 × 15"}[w];
+    const early=w<=2;
+    const main = early
+      ? [["boxsquat",r],["sldlwall",r+PS],["stepup",r+PS],["towelslide",r],["monster",r],["bridge",r]]
+      : [["gobletpause",r],["sldlrot",r+PS],["stepupcp",r+PS],[w<=4?"towelslide":"sltowel",w<=4?r:r+PS],["latwalk",r],[w<=4?"bridgebench":"slbridge",w<=4?r:r+PS]];
+    const bal = early
+      ? [["slbal",(w===1?"1":"2")+" × 30 s"+PS],["slhiprot","2 × 8"+PS]]
+      : [["slbalcush","2 × 30 s"+PS],["slhiprot","2 × 8"+PS],["dbsidelunge",(w<=4?"2":"3")+" × 10"+PS]];
+    const st = ["fig4","ninety","hipflex"].concat(early?[]:["ankle","spider"]);
+    return {title:"Session A · Lower body + balance",time:"45–55 min",smr:["Glutes (sit on the ball)","Calves","Hamstrings","IT band","Adductors"],
+      stretch:{ids:st,rx:stretchSets(w)+" × 15 reps or 20–30 s hold"},
+      blocks:[{t:"Main block",s:"Tempo 4-2-1 · rest 1–2 min",items:items(main)},{t:"Balance",s:"",items:items(bal)}]};
+  }
+  if(w<=12){
+    const hyp=w<=9; const r=hyp?"3 × 8–10":(w===12?"4 × 12–15":"3 × 12–15"); const b=hyp?"1 × 6":"3 × 12"; const c=hyp?"1 × 12":"3 × 12";
+    return {title:"Session A · Lower body",time:"45–55 min",smr:["Glutes","Calves","Hamstrings","IT band","Adductors"],
+      stretch:{ids:["fig4","ninety","hipflex","hams"],rx:"2 × 15 reps or 20–30 s hold"},
+      blocks:[{t:"Main block",s:"Tempo 2-0-2 · RPE 7 · rest 1 min",items:items([["goblet",r],["dbrdl",r],[hyp?"revlunge":"bss",r+PS],["hipthrust",r],["stepuppress",r+PS]])},
+        {t:"Balance",s:"",items:items([["slsqbench",b+PS],["multistep",b+PS]])},
+        {t:"Core",s:"",items:items([["sideplank",hyp?"1 × 30 s"+PS:"3 × 30 s"+PS],["revcrunch",c]])}],
+      notes:hyp?[]:["From week 10 the reverse lunge becomes a Bulgarian split squat."]};
+  }
+  if(w<=18){
+    const a=w<=15; const m=a?"4 × 6–8":"5 × 5–6"; const acc=a?"2 × 10":"3 × 8"; const bc=a?"2 × 8":"3 × 10";
+    return {title:"Session A · Lower-body strength",time:"50–55 min",smr:["Glutes","Calves","Hamstrings","IT band","Adductors"],
+      stretch:{ids:["fig4","ninety","hipflex","hams"],rx:"2 × 15 reps or 20–30 s hold"},
+      blocks:[{t:"Main lifts",s:"Tempo 3-1-fast · RPE "+(a?"7–8":"8")+" · rest 2 min · 2–3 warm-up sets first",items:items([["bss",m+PS],["slrdl",m+PS]])},
+        {t:"Accessories",s:"RPE 7 · rest 1–2 min",items:items([["goblet15",acc],["slhipthrust",acc+PS]])},
+        {t:"Balance + core",s:"",items:items([["slsqbench",bc+PS],["multistep",bc+PS],["revcrunch",bc]])}],
+      notes:["Too easy with the heaviest pair? Slower lowering → 2 s pause → 1½ reps → band on top.","No Session A in the 48 h before a round."]};
+  }
+  // power
+  const p=({19:"2",20:"3",21:"3",22:"4"})[w]+" × 8";
+  return {title:"Session A · Lower-body power",time:"40–50 min",smr:["Glutes","Thoracic spine","Hamstrings","Lats","Calves","Adductors"],
+    stretch:{ids:["dynlunge","aframe","fig4","benchlat","mlr"].concat(w>=21?["warrior","hipcircles","legswings","wallopen"]:[]),rx:"2 × 15 reps or 20–30 s hold"},
+    blocks:[{t:"Power block 1",s:"Circuit · max speed · rest 1 min between rounds",items:items([["squatjump",p],["latshuffle",p],["longjump",p],["iceskater",p+PS]])},
+      {t:"Power block 2",s:"Circuit · rest 1 min",items:items([["dbswing",p],["mbliftchop",p+PS],["latbound",p+PS],["hipdriver",p]])},
+      {t:"Strength maintenance",s:"RPE 7",items:items([["bss","2 × 5–6"+PS],["dbrdl","2 × 5–6"]])}],
+    notes:["Land softly on grass or a non-slip floor. Stop a set when speed drops."]};
+}
+
+function sessionB(w){
+  if(w<=6){
+    const r={1:"1 × 12",2:"2 × 12",3:"2 × 12",4:"2 × 15",5:"3 × 15",6:"3 × 15"}[w];
+    const early=w<=2;
+    const main = early
+      ? [["dbpress",r],["pushincl",r],["bandrow",r],["bandpulldown",r],["iytw",r],["hkpress",r+PS],["scappush",r]]
+      : [[w<=4?"sapress":"altpress",r+PS],[w<=4?"pushup":"narrowpush",r],[w<=4?"sabandrow":"birddogrow",r+PS],["bandpulldown",r],["dbyt",r],["hkpress",r+PS],["wallwalk",r]];
+    const core=[["deadbug",(w<=1?"1":w<=4?"2":"3")+" × 12"],["birddog",(w<=1?"1":w<=4?"2":"3")+" × 12"],["cobra",(w<=1?"1":"2")+" × 12"]];
+    if(w>=5){core.push(["plank","3 × 30 s"],["sideplank","3 × 30 s"+PS]);}
+    const st=["openbook","lumbar","palm","benchlat"].concat(early?[]:["wallslide","clock"]);
+    return {title:"Session B · Upper body + core",time:"40–50 min",smr:["Lats","Pecs (ball on a wall)","Thoracic spine"],
+      stretch:{ids:st,rx:stretchSets(w)+" × 15 reps or 20–30 s hold"},
+      blocks:[{t:"Main block",s:"Tempo 4-2-1 · rest 1–2 min",items:items(main)},{t:"Core",s:"",items:items(core)},
+        {t:"Optional arms",s:"If you have time",items:items([["pushdown","1 × 12"],["sldbcurl","1 × 12"+PS]])}]};
+  }
+  if(w<=12){
+    const hyp=w<=9; const r=hyp?"3 × 8–10":(w===12?"4 × 12–15":"3 × 12–15"); const c=hyp?"1 × 12":"3 × 12";
+    return {title:"Session B · Upper body",time:"40–50 min",smr:["Lats","Pecs","Thoracic spine"],
+      stretch:{ids:["openbook","lumbar","palm","benchlat","wallslide"],rx:"2 × 15 reps or 20–30 s hold"},
+      blocks:[{t:"Main block",s:"Tempo 2-0-2 · RPE 7 · rest 1 min",items:items([["dbpress",r],["sadbrow",r+PS],["bandpulldown",r],["footelevpush",r],["dbshpress",r],["revfly",r]])},
+        {t:"Core",s:"",items:items([["chop",c+PS],["lift",c+PS]])},
+        {t:"Optional arms",s:"",items:items([["pushdown","2 × 12"],["dbcurl","2 × 12"]])}],
+      notes:hyp?[]:["Bought a pull-up bar? Swap the pulldown for band-assisted pull-ups."]};
+  }
+  if(w<=18){
+    const a=w<=15; const m=a?"4 × 6–8":"5 × 5–6"; const acc=a?"2 × 10":"3 × 8"; const bc=a?"2 × 8":"3 × 10";
+    return {title:"Session B · Upper-body strength",time:"45–50 min",smr:["Lats","Pecs","Thoracic spine"],
+      stretch:{ids:["openbook","lumbar","palm","benchlat","wallslide"],rx:"2 × 15 reps or 20–30 s hold"},
+      blocks:[{t:"Main lifts",s:"Tempo 3-1-fast · rest 2 min · warm-up sets first",items:items([["dbpress",m],["sadbrow",m+PS]])},
+        {t:"Accessories",s:"RPE 7 · rest 1–2 min",items:items([["bandpulldown",acc],["dbshpress",acc],["revfly",acc]])},
+        {t:"Core",s:"",items:items([["bodysaw",bc],["plankupdown",bc]])}],
+      notes:["Heaviest pair too light on the press? Use the single-arm press for more load per arm."]};
+  }
+  const p=({19:"2",20:"3",21:"3",22:"4"})[w]+" × 8";
+  return {title:"Session B · Upper-body power",time:"40–45 min",smr:["Lats","Pecs","Thoracic spine","Glutes"],
+    stretch:{ids:["dynlunge","aframe","fig4","benchlat","mlr"].concat(w>=21?["warrior","hipcircles","legswings","wallopen"]:[]),rx:"2 × 15 reps or 20–30 s hold"},
+    blocks:[{t:"Power block 1",s:"Circuit · max speed · rest 1 min",items:items([["chestpass",p],["bandchestfast",p],["bandrowfast",p],["fastpush",p]])},
+      {t:"Power block 2",s:"Circuit · rest 1 min",items:items([["tennisthrow",p],["bandropes","20 s × "+p.split(" ")[0]],["bandpunch",p+PS],["ohthrow",p]])},
+      {t:"Strength maintenance",s:"RPE 7",items:items([["dbpress","2 × 5–6"],["sadbrow","2 × 5–6"+PS]])}]};
+}
+
+function sessionC(w){
+  if(w<=6){
+    const r={1:"1 × 12",2:"2 × 12",3:"2 × 12",4:"2 × 15",5:"3 × 15",6:"3 × 15"}[w];
+    const early=w<=2; const s2=w>=5?"3":"2";
+    const main = early
+      ? [["slgolf","2 × 30 s"+PS],["splitrot","2 × 12"+PS],["throwcatch","2 × 8"+PS],["pallofhk","2 × 8"+PS],["sabandrot",r+PS],["dbbackswing",r],["sidelunge",r+PS]]
+      : [["slgolfrot",s2+" × 8"+PS],["splitrot",s2+" × 12"+PS],[w<=4?"throwcatch":"windmill",s2+" × 8"+PS],[w<=4?"pallofhk":"pallofss",s2+" × 8"+PS],["lungebandrot",r+PS],["dbbackswing",r],["dbsidelunge",r+PS]];
+    const core = w<=4
+      ? [["shtaps","2 × 12"],["sideplank","2 × 20–30 s"+PS],["superman","2 × 12"]]
+      : [["bodysaw","3 × 10"],["sideplank","3 × 30 s"+PS],["slowdeadbug","3 × 8"]];
+    return {title:"Session C · Golf rotation + balance",time:"40–50 min",smr:["Glutes","Thoracic spine","Plantar fascia (ball under the foot)","Calves"],
+      stretch:{ids:["throtation","backswing","fwdswing","wallopen"],rx:stretchSets(w)+" × 15 reps or 20–30 s hold"},
+      blocks:[{t:"Main block",s:"Slow and controlled · rest 1–2 min",items:items(main)},{t:"Core",s:"",items:items(core)}]};
+  }
+  if(w<=12){
+    const hyp=w<=9; const r=hyp?"3 × 8–10":(w===12?"4 × 12–15":"3 × 12–15"); const c=hyp?"1 × 12":"3 × 12";
+    const main=[["dbdl",r]]; if(!hyp) main.push(["dbswing","3 × 12"]);
+    main.push(["farmer","3 × 30 m"],["bandrotpress",r+PS],["standchop",r+PS],["standlift",r+PS],["sllc",(hyp?"2 × 8":"3 × 10")+PS],["sstorso",r+PS],["conereach",(hyp?"1 × 6":"3 × 8")+PS]);
+    return {title:"Session C · Golf strength + rotation",time:"45–50 min",smr:["Glutes","Thoracic spine","Plantar fascia","Calves"],
+      stretch:{ids:["throtation","backswing","fwdswing","wgs","cobradog"],rx:"2 × 15 reps or 20–30 s hold"},
+      blocks:[{t:"Main block",s:"Tempo 2-0-2 · RPE 7 · rest 1 min",items:items(main)},
+        {t:"Core",s:"",items:items([["pallof",c+PS],["spr",(hyp?"1 × 10":"3 × 10")+PS],["deadbug",c]])}]};
+  }
+  if(w<=18){
+    const a=w<=15; const m=a?"4 × 6–8":"5 × 5–6"; const acc=a?"2 × 10":"3 × 8"; const bc=a?"2 × 8":"3 × 10";
+    return {title:"Session C · Golf strength",time:"50 min",smr:["Glutes","Thoracic spine","Plantar fascia","Calves"],
+      stretch:{ids:["throtation","backswing","fwdswing","wgs","cobradog"],rx:"2 × 15 reps or 20–30 s hold"},
+      blocks:[{t:"Main lifts",s:"Rest 2 min · warm-up sets first",items:items([["dbrdltempo",m],["bentrow",m]])},
+        {t:"Accessories",s:"RPE 7 · rest 1–2 min",items:items([["dbswing",acc],["halfsqball",acc+PS],["bandsqrot",acc+PS],["renegade",acc+PS]])},
+        {t:"Balance + core",s:"",items:items([["sllc",bc+PS],["bandrot",bc+PS],["pallof",bc+PS]])}]};
+  }
+  const p=({19:"2",20:"3",21:"3",22:"4"})[w]+" × 8";
+  return {title:"Session C · Rotational power (golf speed)",time:"40–45 min",smr:["Glutes","Thoracic spine","Hamstrings","Lats","Calves","Pecs","Adductors"],
+    stretch:{ids:["dynlunge","aframe","fig4","benchlat","mlr"].concat(w>=21?["warrior","hipcircles","legswings","wallopen"]:[]),rx:"2 × 15 reps or 20–30 s hold"},
+    blocks:[{t:"Power block 1",s:"Into the net · both sides · rest 1 min",items:items([["kneelthrow",p+PS],["kneelbandrot",p+PS],["scoopthrow",p+PS],["sachestthrow",p+PS]])},
+      {t:"Power block 2",s:"Circuit · rest 1 min",items:items([["bandrotfast",p+PS],["screwdriver",p],["bandlatrotjump",p+PS],["dbswing",p]])},
+      {t:"Strength maintenance",s:"RPE 7",items:items([["splitsquat","2 × 5–6"+PS]])}],
+    notes:["Stand 2–3 m from the net, side-on. Extra sets on your weaker side."]};
+}
+
+function mini(w){
+  let bal;
+  if(w<=2) bal=["slbal","2 × 30 s"+PS]; else if(w<=4) bal=["slbalreach","2 × 8"+PS]; else bal=["slbaleyes","2 × max (aim 25 s)"+PS];
+  return {title:"Mini session",time:"15 min",smr:["Thoracic spine","Glutes (3 min total)"],
+    stretch:null,
+    blocks:[{t:"Mobility",s:"",items:items([["openbook","10"+PS],["ninety","30 s"+PS],["ankle","10"+PS]])},
+      {t:"Balance",s:"",items:items([bal])},
+      {t:"Core",s:"",items:items([["deadbug","1 × 12"],["birddog","1 × 12"+PS],[w<=6?"bridge":"slbridge",w<=6?"1 × 12":"1 × 10"+PS]])}]};
+}
+
+const MOVE_TESTS=["t_pelvis","t_shoulder","t_wrist","t_lat","t_hip","t_trunk","t_ankle","t_imp","t_habd","t_ohs","t_toe","t_bridge","t_slb","t_cone"];
+
+function taper(d){
+  const mob={0:["warrior","sidebend","lungerot","wgs"],1:["sidestr","hipcircles","cat","legswings"],2:["dynlunge","aframe","fig4","benchlat"],3:null,4:["wallslide","ankle","spider","clock"],5:["thext","backswing","fwdswing","lungerot"],6:["wallopen","mlr","butterfly","cobradog"]}[d];
+  const lifts={0:["hipthrust","walklunge","golfsquat","dbrdl","walltoss"],2:["sadbpress","bandchest","bandrow","renegade","revfly"],4:["dbshrot","bandrot","bandangles","sstorso","farmer"]}[d];
+  if(!mob) return {rest:true,title:"Off",text:"Full rest day."};
+  const s={title:lifts?"Taper · mobility + light lifts":"Taper · mobility",time:lifts?"30 min":"10–15 min",smr:["Whatever feels tight"],stretch:{ids:mob,rx:"2 × 15 reps or 20–30 s hold"},blocks:[]};
+  if(lifts) s.blocks.push({t:"Maintenance lifts",s:"1 × 12 each · easy",items:lifts.map(id=>({id,rx:"1 × 12"}))});
+  return s;
+}
+function maint(dayNo){
+  const L={1:["isobandrow","dbdeadlift","ssdbrow","sly","sltorsorot","curlpress","bandrotpress"],2:["bandsldl","pullapart","pullaprot","sidesteps","ohrevlunge","takeaway","bandrotfast"],3:["birddogrow","slsqdb","dbsly","bandlathops","ssbandrow","activation","takeaway"]}[dayNo];
+  return {title:"Maintenance · Day "+dayNo,time:"25–30 min",smr:["Whatever feels tight this week"],
+    stretch:{ids:["wgs","openbook","ninety","backswing"],rx:"2 × 10 or 20–30 s hold"},
+    blocks:[{t:"Strength + power maintenance",s:"1 min each or 1 × 10",items:L.map(id=>({id,rx:"1 × 10 / 1 min"}))}],
+    notes:["Keep the day before a round to mobility only."]};
+}
+
+/* ---------- Day plan ---------- */
+const GOLF={0:"Putting at the office, 10 min.",1:"Chipping in the garden.",2:"Putting at the office.",3:"Optional net session. Do the 5-min pre-practice warm-up first.",4:"Optional garden chipping.",5:"Main net or range session. Warm-up: leg swings, hip circles, world's greatest stretch, wall open book, lunge with rotation, 10 half swings building to full.",6:"Course day about once a month. No Session A the day before."};
+
+function plan(w,d){
+  const out={golf:GOLF[d],extra:[]};
+  if(w===23){ Object.assign(out,taper(d)); if(d===5||d===6) out.golf="Good weekend for your first 9 holes."; if(d===1||d===3) out.cardio=20; return out; }
+  if(w>=24){
+    if(d===0) Object.assign(out,maint(1));
+    else if(d===2) Object.assign(out,maint(2));
+    else if(d===4) Object.assign(out,maint(3));
+    else if(d===6){ Object.assign(out,{rest:true,title:"Rest",text:"Rest, or a long walk."}); }
+    else Object.assign(out,{title:"Play or practise",time:"",smr:[],stretch:{ids:["legswings","hipcircles","wgs","wallopen","lungerot"],rx:"Pre-round warm-up, 5 min"},blocks:[]});
+    if(d===1||d===3) out.cardio=35;
+    out.golf = d===0||d===2||d===4 ? "Practise on the days between sessions." : "Play or practise today.";
+    if(w===26 && d===6){ out.rest=false; out.title="Week 26 · Full re-test"; out.time="2 short sessions"; out.smr=[]; out.stretch=null;
+      out.blocks=[{t:"Movement battery",s:"Compare with week 1",items:MOVE_TESTS.map(id=>({id,rx:"L / R"}))},{t:"Performance + power",s:"",items:items([["t_push","60 s"],["t_davies","3 trials"],["t_bss","max"+PS],["t_dbbench","max"],["t_throw","best of 3"+PS],["t_vj","best of 3"],["t_pull","if bar"]])}]; }
+    return out;
+  }
+  // Weeks 1–22
+  if(d===0) Object.assign(out,sessionA(w));
+  else if(d===2) Object.assign(out,sessionB(w));
+  else if(d===4){
+    if(w===1){
+      const c=sessionC(1);
+      Object.assign(out,{title:"Test day + balance",time:"50 min",smr:["Glutes","Thoracic spine","Calves"],stretch:{ids:["legswings","hipcircles","wgs","openbook"],rx:"10 min warm-up"},
+        blocks:[{t:"Performance + power tests",s:"Record in the progress log",items:items([["t_push","60 s"],["t_davies","3 trials"],["t_vj","best of 3"],["t_throw","best of 3"+PS],["t_pull","if bar"]])},
+          {t:"Balance (from Session C)",s:"",items:c.blocks[0].items.slice(0,4)}]});
+    } else Object.assign(out,sessionC(w));
+  }
+  else if(d===1||d===5){
+    Object.assign(out,mini(w));
+    if(w===1&&d===5){ out.title="Movement battery + mini session"; out.time="40 min + 15 min"; out.blocks.unshift({t:"Movement battery (baseline)",s:"Partner or phone on a tripod · L and R separately",items:MOVE_TESTS.map(id=>({id,rx:"L / R"}))}); }
+    if(d===1) out.cardio=cardioMin(w);
+  }
+  else if(d===3){ Object.assign(out,{title:"Cardio",time:cardioMin(w)+" min",smr:[],stretch:null,blocks:[]}); out.cardio=cardioMin(w); }
+  else {
+    const T={6:{t:"Movement re-test",items:MOVE_TESTS.map(id=>({id,rx:"L / R"}))},12:{t:"Push-up re-test",items:items([["t_push","60 s"],["t_pull","if bar"]])},18:{t:"Performance re-test",items:items([["t_push","60 s"],["t_davies","3 trials"],["t_bss","max"+PS],["t_dbbench","max"],["t_pull","if bar"]])},22:{t:"Power re-test",items:items([["t_throw","best of 3"+PS],["t_vj","best of 3"]])}}[w];
+    if(T){ Object.assign(out,{title:"End of phase · "+T.t,time:"30–40 min",smr:[],stretch:null,blocks:[{t:T.t,s:"Write the results in the progress log",items:T.items}]}); }
+    else Object.assign(out,{rest:true,title:"Rest",text:"Rest day. A long easy walk counts as recovery."});
+  }
+  return out;
+}
+
+/* ---------- Storage (per viewer, optional) ---------- */
+const NATIVE = window.AndroidStore || null;
+const SKEY = "golf-home-plan";
+function loadRaw(){ try{ return NATIVE ? NATIVE.load() : localStorage.getItem(SKEY); }catch(e){ return null; } }
+function saveRaw(s){ try{ if(NATIVE) NATIVE.save(s); else localStorage.setItem(SKEY,s); }catch(e){} }
+let store={};
+try{ const r=JSON.parse(loadRaw()||"{}"); store=(r&&typeof r==="object")?r:{}; }catch(e){ store={}; }
+function save(){ saveRaw(JSON.stringify(store)); }
+function key(w,d,i,id){ return w+"-"+d+"-"+i+"-"+id; }
+
+function allKeys(w,d){
+  const p=plan(w,d); const ks=[];
+  if(p.rest) return ks;
+  (p.blocks||[]).forEach((b,bi)=>b.items.forEach((it,ii)=>ks.push(key(w,d,bi+"."+ii,it.id))));
+  if(p.cardio) ks.push(key(w,d,"c","cardio"));
+  return ks;
+}
+function dayDone(w,d){ const ks=allKeys(w,d); return ks.length>0 && ks.every(k=>store[k]); }
+function weekPct(w){ let t=0,n=0; for(let d=0;d<7;d++){ const ks=allKeys(w,d); t+=ks.length; n+=ks.filter(k=>store[k]).length; } return t?n/t:0; }
+
+/* ---------- Progress ---------- */
+function sessionList(){ const L=[]; for(let w=1;w<=26;w++) for(let d=0;d<7;d++){ if(allKeys(w,d).length) L.push({w,d}); } return L; }
+const SESSIONS = sessionList();
+function nextUp(){ for(const s of SESSIONS){ if(!dayDone(s.w,s.d)) return s; } return null; }
+function lastTicked(){ let best=null; for(const s of SESSIONS){ if(allKeys(s.w,s.d).some(k=>store[k])) best=s; } return best; }
+function renderProgress(){
+  const done=SESSIONS.filter(s=>dayDone(s.w,s.d)).length, total=SESSIONS.length, pct=Math.round(done/total*100);
+  const n=nextUp(), t=today(), last=lastTicked();
+  let h="";
+  if(n){ const p=plan(n.w,n.d); h+=`<div class="next">Next up<b>Week ${n.w} · ${DAYS[n.d]} ${fmt(dateOf(n.w,n.d))} · ${esc(p.title)}</b></div>`; }
+  else h+=`<div class="next"><b>All 26 weeks done. Well played.</b></div>`;
+  h+=`<div class="bar" aria-hidden="true"><i style="width:${pct}%"></i></div>`;
+  h+=`<div class="stats">${done} of ${total} sessions complete · ${pct}%${last?` · last ticked: week ${last.w} ${DAYS[last.d]}`:""}</div>`;
+  h+=`<div class="row">${n?`<button class="btn primary" type="button" id="contBtn">Continue where I left off</button>`:""}<button class="btn" type="button" id="todayBtn">Today (W${t.w} ${DAYS[t.d]})</button></div>`;
+  document.getElementById("progress").innerHTML=h;
+}
+
+/* ---------- Render ---------- */
+let cur={w:1,d:0};
+const $weeks=document.getElementById("weeks"), $days=document.getElementById("days"), $main=document.getElementById("main");
+const LABEL=(w,d)=>{ const p=plan(w,d); if(p.rest) return "Rest"; if(w>=24&&(d===0||d===2||d===4)) return "Maint."; if(w===23) return d===3?"Off":"Mobility"; return ({0:"A",1:"Mini",2:"B",3:"Cardio",4:w===1?"Tests":"C",5:"Mini",6:"Tests"})[d]; };
+
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]); }
+
+function renderWeeks(){
+  let h="";
+  for(let w=1;w<=26;w++){
+    const ph=phase(w);
+    h+=`<button class="wk" role="tab" type="button" id="wk${w}" aria-selected="${w===cur.w}" style="--ph:${ph.color}" data-w="${w}" title="${esc(ph.name)}"><b>W${w}</b><span>${fmt(dateOf(w,0))}</span><i class="pct" style="width:${Math.round(weekPct(w)*100)}%"></i></button>`;
+  }
+  $weeks.innerHTML=h;
+  const sel=document.getElementById("wk"+cur.w);
+  if(sel){ const r=sel.offsetLeft-$weeks.clientWidth/2+sel.clientWidth/2; $weeks.scrollLeft=r; }
+}
+function renderDays(){
+  let h="";
+  for(let d=0;d<7;d++){
+    h+=`<button class="day${dayDone(cur.w,d)?" done":""}" role="tab" type="button" aria-selected="${d===cur.d}" data-d="${d}"><b>${DAYS[d]} ${dateOf(cur.w,d).getDate()}</b><span>${esc(LABEL(cur.w,d))}</span></button>`;
+  }
+  $days.innerHTML=h;
+}
+function exHTML(w,d,bi,ii,it){
+  const e=EX[it.id]||[it.id,"",""]; const k=key(w,d,bi+"."+ii,it.id); const done=!!store[k];
+  const cid="c-"+k.replace(/[^a-z0-9]/gi,"_");
+  return `<div class="ex${done?" done":""}"><div class="exrow"><input type="checkbox" id="${cid}" data-k="${esc(k)}" ${done?"checked":""}><label for="${cid}" class="exname">${esc(e[0])}</label><div class="rx">${esc(it.rx)}</div></div>`+
+    (e[1]?`<details><summary>How to do it</summary><p>${esc(e[1])}</p>${e[2]?`<p class="why">Golf: ${esc(e[2])}</p>`:""}</details>`:"")+`</div>`;
+}
+function stretchHTML(st){
+  return `<section class="block"><header><h4>Stretching</h4><small>${esc(st.rx)}</small></header>`+
+    st.ids.map(id=>{ const e=EX[id]; return `<div class="ex"><div class="exrow" style="grid-template-columns:1fr auto"><div class="exname">${esc(e[0])}</div></div><details><summary>How to do it</summary><p>${esc(e[1])}</p>${e[2]?`<p class="why">Golf: ${esc(e[2])}</p>`:""}</details></div>`; }).join("")+`</section>`;
+}
+function renderMain(){
+  const w=cur.w,d=cur.d,ph=phase(w),p=plan(w,d);
+  let h=`<section class="phase" style="--ph:${ph.color}"><h2>Week ${w} · ${esc(ph.name)}</h2><p>${fmt(dateOf(w,0))} – ${fmt(dateOf(w,6))} · ${esc(ph.sub)}</p><div class="chips">${weekChips(w).map(c=>`<span class="chip">${esc(c)}</span>`).join("")}</div></section>`;
+  h+=`<div class="session"><h3>${DAYS[d]} ${fmt(dateOf(w,d))} · ${esc(p.title)}</h3>`;
+  if(p.rest){
+    h+=`<div class="block"><div class="rest">${esc(p.text)}</div></div>`;
+  } else {
+    if(p.time) h+=`<p class="meta">${esc(p.time)}${p.blocks&&p.blocks.length?" · tick each exercise as you finish it":""}</p>`;
+    if(p.smr&&p.smr.length) h+=`<section class="block"><header><h4>SMR</h4><small>Foam roller or ball · 30–60 s per area</small></header><div class="tags">${p.smr.map(s=>`<span class="tag">${esc(s)}</span>`).join("")}</div></section>`;
+    if(p.stretch) h+=stretchHTML(p.stretch);
+    (p.blocks||[]).forEach((b,bi)=>{
+      h+=`<section class="block"><header><h4>${esc(b.t)}</h4><small>${esc(b.s||"")}</small></header>${b.items.map((it,ii)=>exHTML(w,d,bi,ii,it)).join("")}</section>`;
+    });
+    if(p.cardio){
+      const k=key(w,d,"c","cardio"); const done=!!store[k]; const cid="c-"+k.replace(/[^a-z0-9]/gi,"_");
+      h+=`<section class="block"><header><h4>Cardio</h4><small>Conversational pace</small></header><div class="ex${done?" done":""}"><div class="exrow"><input type="checkbox" id="${cid}" data-k="${esc(k)}" ${done?"checked":""}><label for="${cid}" class="exname">Brisk walk, step-ups to music, or bike</label><div class="rx">${p.cardio} min</div></div></div></section>`;
+    }
+    (p.notes||[]).forEach(n=>{ h+=`<div class="golf"><b>Note</b><span>${esc(n)}</span></div>`; });
+  }
+  if(p.golf) h+=`<div class="golf"><b>Golf</b><span>${esc(p.golf)}</span></div>`;
+  h+=`</div><div class="foot"><button class="btn" type="button" id="prevBtn">← Previous day</button><button class="btn" type="button" id="nextBtn">Next day →</button></div>`;
+  $main.innerHTML=h;
+}
+function render(){ renderProgress(); renderWeeks(); renderDays(); renderMain(); store.__pos=cur.w+"-"+cur.d; save(); }
+
+function go(w,d){ cur.w=Math.min(26,Math.max(1,w)); cur.d=Math.min(6,Math.max(0,d)); render(); }
+function today(){
+  const now=new Date(); now.setHours(0,0,0,0);
+  const diff=Math.floor((now-START)/86400000);
+  if(diff<0) return {w:1,d:0};
+  if(diff>=182) return {w:26,d:6};
+  return {w:Math.floor(diff/7)+1,d:diff%7};
+}
+function fromHash(){
+  const m=(location.hash||"").match(/^#w(\d+)-(mon|tue|wed|thu|fri|sat|sun)$/);
+  if(!m) return null;
+  return {w:+m[1],d:DAYS.map(x=>x.toLowerCase()).indexOf(m[2])};
+}
+
+$weeks.addEventListener("click",e=>{ const b=e.target.closest(".wk"); if(b) go(+b.dataset.w,cur.d); });
+$days.addEventListener("click",e=>{ const b=e.target.closest(".day"); if(b) go(cur.w,+b.dataset.d); });
+$main.addEventListener("change",e=>{
+  const c=e.target; if(c.type!=="checkbox") return;
+  if(c.checked) store[c.dataset.k]=1; else delete store[c.dataset.k];
+  save(); c.closest(".ex").classList.toggle("done",c.checked); renderDays(); renderProgress();
+  const sel=document.getElementById("wk"+cur.w); if(sel){ const bar=sel.querySelector(".pct"); if(bar) bar.style.width=Math.round(weekPct(cur.w)*100)+"%"; }
+});
+$main.addEventListener("click",e=>{
+  if(e.target.id==="prevBtn"){ if(cur.d>0) go(cur.w,cur.d-1); else if(cur.w>1) go(cur.w-1,6); }
+  if(e.target.id==="nextBtn"){ if(cur.d<6) go(cur.w,cur.d+1); else if(cur.w<26) go(cur.w+1,0); }
+});
+document.getElementById("progress").addEventListener("click",e=>{
+  if(e.target.id==="todayBtn"){ const t=today(); go(t.w,t.d); window.scrollTo(0,0); }
+  if(e.target.id==="contBtn"){ const n=nextUp(); if(n){ go(n.w,n.d); window.scrollTo(0,0); } }
+});
+
+/* ---------- Backup / restore / reset ---------- */
+const $ov=document.getElementById("overlay"), $area=document.getElementById("dlgArea");
+function dialog(title,text,area,buttons){
+  document.getElementById("dlgTitle").textContent=title;
+  document.getElementById("dlgText").textContent=text;
+  $area.style.display=area===null?"none":"block"; $area.value=area||"";
+  const box=document.getElementById("dlgBtns"); box.innerHTML="";
+  buttons.forEach(b=>{ const el=document.createElement("button"); el.type="button"; el.className="btn"+(b.cls?" "+b.cls:""); el.textContent=b.label; el.addEventListener("click",()=>{ if(b.fn()!==false) $ov.classList.remove("open"); }); box.appendChild(el); });
+  $ov.classList.add("open");
+}
+function backupText(){ const c=Object.assign({},store); return JSON.stringify({app:"golf-plan",v:1,saved:new Date().toISOString(),data:c}); }
+document.getElementById("backupBtn").addEventListener("click",()=>{
+  const txt=backupText();
+  if(NATIVE && NATIVE.share){ try{ NATIVE.share(txt); return; }catch(e){} }
+  dialog("Back up progress","Copy this text and keep it somewhere safe (notes, email to yourself).",txt,[
+    {label:"Copy",cls:"primary",fn:()=>{ try{ navigator.clipboard.writeText(txt); }catch(e){ $area.select(); } return false; }},
+    {label:"Close",fn:()=>true}]);
+});
+document.getElementById("restoreBtn").addEventListener("click",()=>{
+  dialog("Restore progress","Paste a backup below. This replaces the progress on this phone.","",[
+    {label:"Restore",cls:"primary",fn:()=>{
+      try{ const o=JSON.parse($area.value.trim()); const d=o&&o.data; if(!d||typeof d!=="object") throw 0;
+        store=d; save(); const p=(store.__pos||"").split("-"); go(+p[0]||1,+p[1]||0); return true;
+      }catch(e){ document.getElementById("dlgText").textContent="That doesn't look like a Golf Plan backup. Paste the whole text, including the curly brackets."; return false; } }},
+    {label:"Cancel",fn:()=>true}]);
+});
+document.getElementById("resetBtn").addEventListener("click",()=>{
+  dialog("Reset all progress?","Every tick will be cleared. This can't be undone unless you have a backup.",null,[
+    {label:"Reset everything",cls:"danger",fn:()=>{ store={}; save(); const t=today(); go(t.w,t.d); return true; }},
+    {label:"Cancel",fn:()=>true}]);
+});
+$ov.addEventListener("click",e=>{ if(e.target===$ov) $ov.classList.remove("open"); });
+window.goBack=function(){ if($ov.classList.contains("open")){ $ov.classList.remove("open"); return true; } return false; };
+
+// Start where you left off (last viewed day), else today
+let start=null;
+if(store.__pos){ const p=store.__pos.split("-"); if(+p[0]>=1&&+p[0]<=26&&+p[1]>=0&&+p[1]<=6) start={w:+p[0],d:+p[1]}; }
+cur=start||today(); render();
+})();
+</script>
+</body>
+</html>

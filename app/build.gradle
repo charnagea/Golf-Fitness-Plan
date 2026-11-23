@@ -1,0 +1,49 @@
+plugins {
+    id 'com.android.application'
+}
+
+def buildNumber = (System.getenv("BUILD_NUMBER") ?: "1").toInteger()
+
+android {
+    namespace 'ro.harnagea.golfplan'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "ro.harnagea.golfplan"
+        minSdk 26
+        targetSdk 36
+        versionCode buildNumber
+        versionName "1.0.${buildNumber}"
+    }
+
+    signingConfigs {
+        shared {
+            storeFile file("golfplan.keystore")
+            storeType "pkcs12"
+            storePassword "golfplan"
+            keyAlias "golfplan"
+            keyPassword "golfplan"
+        }
+    }
+
+    buildTypes {
+        debug {
+            if (file("golfplan.keystore").exists()) signingConfig signingConfigs.shared
+        }
+        release {
+            minifyEnabled false
+            // Same key on every GitHub build, so updates install over the old version and keep your progress.
+            signingConfig file("golfplan.keystore").exists() ? signingConfigs.shared : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
